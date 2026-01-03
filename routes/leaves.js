@@ -15,7 +15,8 @@ router.get('/', authenticate, async (req, res) => {
       if (!req.user.employeeRef) {
         return res.status(400).json({ message: 'Employee profile not found' });
       }
-      query.employee = req.user.employeeRef;
+      const empId = req.user.employeeRef._id ? req.user.employeeRef._id : req.user.employeeRef;
+      query.employee = empId;
     }
     // HR can view all leaves
 
@@ -42,8 +43,11 @@ router.get('/:id', authenticate, async (req, res) => {
     }
 
     // Employees can only view their own leaves
-    if (req.user.role === 'Employee' && leave.employee._id.toString() !== req.user.employeeRef?.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
+    if (req.user.role === 'Employee') {
+      const userEmployeeId = req.user.employeeRef?._id ? req.user.employeeRef._id.toString() : req.user.employeeRef?.toString();
+      if (leave.employee._id.toString() !== userEmployeeId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
     }
 
     res.json(leave);
@@ -71,8 +75,10 @@ router.post('/', authenticate, async (req, res) => {
     const diffTime = Math.abs(end - start);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
+    const empId = req.user.employeeRef._id ? req.user.employeeRef._id : req.user.employeeRef;
+
     const leaveRequest = new LeaveRequest({
-      employee: req.user.employeeRef,
+      employee: empId,
       timeOffType,
       startDate: start,
       endDate: end,
@@ -170,7 +176,8 @@ router.delete('/:id', authenticate, async (req, res) => {
 
     // Employees can only delete their own pending requests
     if (req.user.role === 'Employee') {
-      if (leaveRequest.employee.toString() !== req.user.employeeRef?.toString()) {
+      const userEmployeeId = req.user.employeeRef?._id ? req.user.employeeRef._id.toString() : req.user.employeeRef?.toString();
+      if (leaveRequest.employee.toString() !== userEmployeeId) {
         return res.status(403).json({ message: 'Access denied' });
       }
       if (leaveRequest.status !== 'Pending') {
@@ -196,7 +203,8 @@ router.get('/summary/:employeeId?', authenticate, async (req, res) => {
       if (!req.user.employeeRef) {
         return res.status(400).json({ message: 'Employee profile not found' });
       }
-      employeeId = req.user.employeeRef.toString();
+      // Handle both object and string cases
+      employeeId = req.user.employeeRef._id ? req.user.employeeRef._id.toString() : req.user.employeeRef.toString();
     }
 
     if (!employeeId) {

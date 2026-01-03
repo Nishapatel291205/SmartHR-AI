@@ -117,6 +117,12 @@ const attendanceAPI = {
         const queryString = new URLSearchParams(params).toString();
         return await apiRequest(`/attendance?${queryString}`);
     },
+    create: async (data) => {
+        return await apiRequest('/attendance', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
     checkIn: async () => {
         return await apiRequest('/attendance/checkin', {
             method: 'POST'

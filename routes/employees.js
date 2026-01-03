@@ -23,8 +23,11 @@ router.get('/:id', authenticate, async (req, res) => {
     const employee = await Employee.findById(req.params.id);
     
     // Employees can only view their own profile
-    if (req.user.role === 'Employee' && req.user.employeeRef?.toString() !== req.params.id) {
-      return res.status(403).json({ message: 'Access denied' });
+    if (req.user.role === 'Employee') {
+      const userEmployeeId = req.user.employeeRef?._id ? req.user.employeeRef._id.toString() : req.user.employeeRef?.toString();
+      if (userEmployeeId !== req.params.id) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
     }
 
     if (!employee) {
@@ -126,12 +129,14 @@ router.put('/:id', authenticate, async (req, res) => {
 
     // Employees can only edit limited fields
     if (req.user.role === 'Employee') {
-      if (req.user.employeeRef?.toString() !== req.params.id) {
+      // Handle both object and string cases for employeeRef
+      const userEmployeeId = req.user.employeeRef?._id ? req.user.employeeRef._id.toString() : req.user.employeeRef?.toString();
+      if (userEmployeeId !== req.params.id) {
         return res.status(403).json({ message: 'Access denied' });
       }
 
       // Allow only specific fields for employees
-      const allowedFields = ['phone', 'residingAddress', 'personalEmail', 'profilePicture', 'about', 'whatILoveAboutJob', 'interestsAndHobbies', 'skills', 'certifications', 'bankDetails'];
+      const allowedFields = ['phone', 'residingAddress', 'nationality', 'personalEmail', 'profilePicture', 'about', 'whatILoveAboutJob', 'interestsAndHobbies', 'skills', 'certifications', 'bankDetails'];
       const updateData = {};
       allowedFields.forEach(field => {
         if (req.body[field] !== undefined) {

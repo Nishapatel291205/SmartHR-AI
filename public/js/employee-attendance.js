@@ -1,7 +1,9 @@
+(function() {
 // Employee Attendance
 let attendanceList = [];
 let selectedMonth = new Date().getMonth();
 let selectedYear = new Date().getFullYear();
+let viewMode = 'calendar'; // 'calendar' or 'table'
 
 async function loadEmployeeAttendance() {
     const content = document.getElementById('page-content');
@@ -72,46 +74,25 @@ async function renderAttendanceView(attendance, summary) {
         <div class="table-container">
             <div class="table-header">
                 <h2>Attendance</h2>
-                <div>
-                    <button class="btn btn-secondary btn-sm" onclick="changeMonth(-1)">←</button>
-                    <select id="month-select" onchange="onMonthChange()" style="padding: 8px; margin: 0 10px; border: 2px solid var(--border-color); border-radius: 8px;">
-                        ${Array.from({length: 12}, (_, i) => {
-                            const date = new Date(selectedYear, i);
-                            return `<option value="${i}" ${i === selectedMonth ? 'selected' : ''}>${date.toLocaleDateString('en-US', { month: 'long' })}</option>`;
-                        }).join('')}
-                    </select>
-                    <button class="btn btn-secondary btn-sm" onclick="changeMonth(1)">→</button>
-                    <span style="margin-left: 10px; font-weight: 500;">${monthName}</span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn btn-sm ${viewMode === 'calendar' ? 'btn-primary' : 'btn-secondary'}" onclick="switchViewMode('calendar')">Calendar</button>
+                        <button class="btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}" onclick="switchViewMode('table')">Table</button>
+                    </div>
+                    <div>
+                        <button class="btn btn-secondary btn-sm" onclick="changeMonth(-1)">←</button>
+                        <select id="month-select" onchange="onMonthChange()" style="padding: 8px; margin: 0 10px; border: 2px solid var(--border-color); border-radius: 8px;">
+                            ${Array.from({length: 12}, (_, i) => {
+                                const date = new Date(selectedYear, i);
+                                return `<option value="${i}" ${i === selectedMonth ? 'selected' : ''}>${date.toLocaleDateString('en-US', { month: 'long' })}</option>`;
+                            }).join('')}
+                        </select>
+                        <button class="btn btn-secondary btn-sm" onclick="changeMonth(1)">→</button>
+                        <span style="margin-left: 10px; font-weight: 500;">${monthName}</span>
+                    </div>
                 </div>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Check In</th>
-                        <th>Check Out</th>
-                        <th>Work Hours</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${attendance.length > 0 ? attendance.map(att => `
-                        <tr>
-                            <td>${new Date(att.date).toLocaleDateString()}</td>
-                            <td>${att.checkIn ? new Date(att.checkIn).toLocaleTimeString() : '-'}</td>
-                            <td>${att.checkOut ? new Date(att.checkOut).toLocaleTimeString() : '-'}</td>
-                            <td>${att.workHours ? att.workHours.toFixed(2) + ' hrs' : '-'}</td>
-                            <td><span class="status-badge ${getStatusClass(att.status)}">${att.status || 'Absent'}</span></td>
-                        </tr>
-                    `).join('') : `
-                        <tr>
-                            <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                                No attendance records for this month
-                            </td>
-                        </tr>
-                    `}
-                </tbody>
-            </table>
+            ${viewMode === 'calendar' ? renderCalendarView(attendance) : renderTableView(attendance)}
         </div>
     `;
 }
@@ -149,6 +130,139 @@ function isToday() {
     return today.getMonth() === selectedMonth && today.getFullYear() === selectedYear;
 }
 
+function switchViewMode(mode) {
+    viewMode = mode;
+    loadEmployeeAttendance();
+}
+
+function renderCalendarView(attendance) {
+    // Create a map of attendance by date
+    const attendanceMap = {};
+    attendance.forEach(att => {
+        const date = new Date(att.date);
+        const day = date.getDate();
+        attendanceMap[day] = att.status || 'Absent';
+    });
+    
+    // Get first day of month and number of days
+    const firstDay = new Date(selectedYear, selectedMonth, 1);
+    const lastDay = new Date(selectedYear, selectedMonth + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    
+    // Generate calendar days
+    const days = [];
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    
+    // Add empty cells for days before month starts
+    for (let i = 0; i < startingDayOfWeek; i++) {
+        days.push(null);
+    }
+    
+    // Add days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+        days.push(day);
+    }
+    
+    // Generate calendar HTML
+    let calendarHTML = `
+        <div style="margin-top: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 15px;">
+                ${dayNames.map(day => `<div style="text-align: center; font-weight: 600; padding: 10px; color: var(--text-secondary);">${day}</div>`).join('')}
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;">
+    `;
+    
+    days.forEach((day, index) => {
+        if (day === null) {
+            calendarHTML += `<div style="padding: 15px; border: 1px solid var(--border-color); border-radius: 8px; background: #f9fafb;"></div>`;
+        } else {
+            const status = attendanceMap[day] || 'Absent';
+            const isPresent = status === 'Present';
+            const isOnLeave = status === 'On Leave';
+            const isHalfDay = status === 'Half-Day';
+            const dotColor = isPresent ? '#10b981' : (isOnLeave ? '#8b5cf6' : '#ef4444');
+            const today = new Date();
+            const isCurrentDay = today.getDate() === day && today.getMonth() === selectedMonth && today.getFullYear() === selectedYear;
+            
+            calendarHTML += `
+                <div style="
+                    padding: 15px; 
+                    border: 2px solid ${isCurrentDay ? 'var(--primary-color)' : 'var(--border-color)'}; 
+                    border-radius: 8px; 
+                    background: ${isCurrentDay ? 'rgba(99, 102, 241, 0.1)' : 'white'};
+                    cursor: pointer;
+                    position: relative;
+                    min-height: 60px;
+                " title="${status}">
+                    <div style="font-weight: ${isCurrentDay ? '600' : '500'}; margin-bottom: 5px;">${day}</div>
+                    <div style="
+                        width: 8px; 
+                        height: 8px; 
+                        border-radius: 50%; 
+                        background-color: ${dotColor};
+                        margin: 5px auto 0;
+                    "></div>
+                </div>
+            `;
+        }
+    });
+    
+    calendarHTML += `
+            </div>
+            <div style="margin-top: 20px; display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 12px; height: 12px; border-radius: 50%; background-color: #10b981;"></div>
+                    <span>Present</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 12px; height: 12px; border-radius: 50%; background-color: #8b5cf6;"></div>
+                    <span>On Leave</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 12px; height: 12px; border-radius: 50%; background-color: #ef4444;"></div>
+                    <span>Absent</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return calendarHTML;
+}
+
+function renderTableView(attendance) {
+    return `
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Check In</th>
+                    <th>Check Out</th>
+                    <th>Work Hours</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${attendance.length > 0 ? attendance.map(att => `
+                    <tr>
+                        <td>${new Date(att.date).toLocaleDateString()}</td>
+                        <td>${att.checkIn ? new Date(att.checkIn).toLocaleTimeString() : '-'}</td>
+                        <td>${att.checkOut ? new Date(att.checkOut).toLocaleTimeString() : '-'}</td>
+                        <td>${att.workHours ? att.workHours.toFixed(2) + ' hrs' : '-'}</td>
+                        <td><span class="status-badge ${getStatusClass(att.status)}">${att.status || 'Absent'}</span></td>
+                    </tr>
+                `).join('') : `
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                            No attendance records for this month
+                        </td>
+                    </tr>
+                `}
+            </tbody>
+        </table>
+    `;
+}
+
 async function handleCheckIn() {
     try {
         await attendanceAPI.checkIn();
@@ -168,4 +282,5 @@ async function handleCheckOut() {
         alert('Error checking out: ' + error.message);
     }
 }
+})();
 

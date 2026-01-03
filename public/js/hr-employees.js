@@ -382,9 +382,149 @@ function renderEmployeeBankInfo(emp) {
     `;
 }
 
-function editEmployee(id) {
-    // Similar to view but with editable fields
-    alert('Edit functionality - implement full form with save capability');
+async function editEmployee(id) {
+    let employee = window.currentEmployee || employeesList.find(emp => emp._id === id);
+    if (!employee) {
+        try {
+            employee = await employeesAPI.getById(id);
+        } catch (error) {
+            alert('Error loading employee: ' + error.message);
+            return;
+        }
+    }
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal show';
+    modal.id = 'edit-employee-modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2>Edit Employee</h2>
+                <button class="modal-close" onclick="closeModal('edit-employee-modal')">&times;</button>
+            </div>
+            <form id="edit-employee-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>First Name *</label>
+                        <input type="text" id="edit-firstname" value="${employee.firstName || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name *</label>
+                        <input type="text" id="edit-lastname" value="${employee.lastName || ''}" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Email *</label>
+                        <input type="email" id="edit-email" value="${employee.email || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" id="edit-phone" value="${employee.phone || ''}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Company Name *</label>
+                        <input type="text" id="edit-company" value="${employee.companyName || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Job Position</label>
+                        <input type="text" id="edit-position" value="${employee.jobPosition || ''}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Department</label>
+                        <input type="text" id="edit-department" value="${employee.department || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Manager</label>
+                        <input type="text" id="edit-manager" value="${employee.manager || ''}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Location</label>
+                        <input type="text" id="edit-location" value="${employee.location || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Joining</label>
+                        <input type="date" id="edit-joining" value="${employee.dateOfJoining ? new Date(employee.dateOfJoining).toISOString().split('T')[0] : ''}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Residing Address</label>
+                    <textarea id="edit-address" rows="3" style="width: 100%; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; font-family: inherit;">${employee.residingAddress || ''}</textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nationality</label>
+                        <input type="text" id="edit-nationality" value="${employee.nationality || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Personal Email</label>
+                        <input type="email" id="edit-personal-email" value="${employee.personalEmail || ''}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Gender</label>
+                        <select id="edit-gender">
+                            <option value="">Select</option>
+                            <option value="Male" ${employee.gender === 'Male' ? 'selected' : ''}>Male</option>
+                            <option value="Female" ${employee.gender === 'Female' ? 'selected' : ''}>Female</option>
+                            <option value="Other" ${employee.gender === 'Other' ? 'selected' : ''}>Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Marital Status</label>
+                        <select id="edit-marital">
+                            <option value="">Select</option>
+                            <option value="Single" ${employee.maritalStatus === 'Single' ? 'selected' : ''}>Single</option>
+                            <option value="Married" ${employee.maritalStatus === 'Married' ? 'selected' : ''}>Married</option>
+                            <option value="Divorced" ${employee.maritalStatus === 'Divorced' ? 'selected' : ''}>Divorced</option>
+                            <option value="Widowed" ${employee.maritalStatus === 'Widowed' ? 'selected' : ''}>Widowed</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('edit-employee-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    document.getElementById('edit-employee-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            firstName: document.getElementById('edit-firstname').value,
+            lastName: document.getElementById('edit-lastname').value,
+            email: document.getElementById('edit-email').value,
+            phone: document.getElementById('edit-phone').value,
+            companyName: document.getElementById('edit-company').value,
+            jobPosition: document.getElementById('edit-position').value,
+            department: document.getElementById('edit-department').value,
+            manager: document.getElementById('edit-manager').value,
+            location: document.getElementById('edit-location').value,
+            dateOfJoining: document.getElementById('edit-joining').value,
+            residingAddress: document.getElementById('edit-address').value,
+            nationality: document.getElementById('edit-nationality').value,
+            personalEmail: document.getElementById('edit-personal-email').value,
+            gender: document.getElementById('edit-gender').value,
+            maritalStatus: document.getElementById('edit-marital').value
+        };
+        
+        try {
+            await employeesAPI.update(id, data);
+            closeModal('edit-employee-modal');
+            viewEmployee(id);
+        } catch (error) {
+            alert('Error updating employee: ' + error.message);
+        }
+    });
 }
 
 function closeModal(modalId) {

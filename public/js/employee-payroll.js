@@ -5,12 +5,24 @@ async function loadEmployeePayroll() {
     
     try {
         const user = getCurrentUser();
-        if (!user || !user.employee) {
+        if (!user) {
+            content.innerHTML = '<div class="alert alert-error">Not signed in</div>';
+            return;
+        }
+
+        let employeeId = null;
+        if (user.employeeRef) {
+            employeeId = user.employeeRef._id ? user.employeeRef._id : user.employeeRef;
+        } else if (user.employee && (user.employee._id || user.employee.id)) {
+            employeeId = user.employee._id || user.employee.id;
+        }
+
+        if (!employeeId) {
             content.innerHTML = '<div class="alert alert-error">Employee profile not found</div>';
             return;
         }
         
-        const payroll = await payrollAPI.getByEmployee(user.employee._id || user.employee.id);
+        const payroll = await payrollAPI.getByEmployee(employeeId);
         renderPayrollView(payroll);
     } catch (error) {
         content.innerHTML = `<div class="alert alert-error">Error loading payroll: ${error.message}</div>`;

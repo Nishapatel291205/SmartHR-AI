@@ -6,20 +6,49 @@ async function loadEmployeeLeaves() {
     content.innerHTML = '<div class="spinner"></div>';
     
     try {
-        const [leaves, summary] = await Promise.all([
+        let [leaves, summary] = await Promise.all([
             leavesAPI.getAll(),
             leavesAPI.getSummary()
         ]);
         
+        // Defensive: handle responses that return an object instead of array
+        if (!Array.isArray(leaves)) {
+            if (leaves && leaves.leaveRequest) {
+                leaves = [leaves.leaveRequest];
+            } else if (leaves && Array.isArray(leaves.leaves)) {
+                leaves = leaves.leaves;
+            } else if (leaves && leaves.data && Array.isArray(leaves.data)) {
+                leaves = leaves.data;
+            } else {
+                // If unknown shape, log and fall back to empty
+                console.warn('Unexpected leaves response shape:', leaves);
+                leaves = [];
+            }
+        }
+        
+        // Ensure summary is an object with expected shape
+        if (!summary || typeof summary !== 'object') {
+            console.warn('Unexpected leave summary response:', summary);
+            summary = {
+                paidTimeOff: { total: 24, used: 0, available: 24 },
+                sickLeave: { total: 7, used: 0, available: 7 }
+            };
+        }
+        
         leavesList = leaves;
         renderLeavesView(leaves, summary);
     } catch (error) {
+        console.error('Error loading leaves:', error);
         content.innerHTML = `<div class="alert alert-error">Error loading leaves: ${error.message}</div>`;
     }
 }
 
 function renderLeavesView(leaves, summary) {
     const content = document.getElementById('page-content');
+    
+    // Guard values
+    leaves = Array.isArray(leaves) ? leaves : [];
+    summary = summary || { paidTimeOff: { total: 24, used: 0, available: 24 }, sickLeave: { total: 7, used: 0, available: 7 } };
     
     content.innerHTML = `
         <div class="card-grid" style="margin-bottom: 30px;">
@@ -60,11 +89,11 @@ function renderLeavesView(leaves, summary) {
                 <tbody>
                     ${leaves.length > 0 ? leaves.map(leave => `
                         <tr>
-                            <td>${new Date(leave.startDate).toLocaleDateString()}</td>
-                            <td>${new Date(leave.endDate).toLocaleDateString()}</td>
-                            <td>${leave.timeOffType}</td>
-                            <td>${leave.allocation} days</td>
-                            <td><span class="status-badge ${getLeaveStatusClass(leave.status)}">${leave.status}</span></td>
+                            <td>${leave.startDate ? new Date(leave.startDate).toLocaleDateString() : 'N/A'}</td>
+                            <td>${leave.endDate ? new Date(leave.endDate).toLocaleDateString() : 'N/A'}</td>
+                            <td>${leave.timeOffType || 'N/A'}</td>
+                            <td>${leave.allocation || 0} days</td>
+                            <td><span class="status-badge ${getLeaveStatusClass(leave.status)}">${leave.status || 'Pending'}</span></td>
                             <td>
                                 ${leave.status === 'Pending' ? `
                                     <button class="btn btn-sm btn-danger" onclick="deleteLeave('${leave._id}')">Delete</button>
@@ -173,7 +202,7 @@ async function deleteLeave(id) {
 }
 
 async function viewLeave(id) {
-    const leave = leavesList.find(l => l._id === id);
+    const leave = leavesList.find(l => l._id === id) || leavesList.find(l => l._id?.toString() === id);
     if (!leave) return;
     
     const modal = document.createElement('div');
@@ -193,16 +222,16 @@ async function viewLeave(id) {
                 <div class="form-row">
                     <div class="form-group">
                         <label><strong>Start Date:</strong></label>
-                        <p>${new Date(leave.startDate).toLocaleDateString()}</p>
+                        <p>${leave.startDate ? new Date(leave.startDate).toLocaleDateString() : 'N/A'}</p>
                     </div>
                     <div class="form-group">
                         <label><strong>End Date:</strong></label>
-                        <p>${new Date(leave.endDate).toLocaleDateString()}</p>
+                        <p>${leave.endDate ? new Date(leave.endDate).toLocaleDateString() : 'N/A'}</p>
                     </div>
                 </div>
                 <div class="form-group">
                     <label><strong>Allocation:</strong></label>
-                    <p>${leave.allocation} days</p>
+                    <p>${leave.allocation || 0} days</p>
                 </div>
                 <div class="form-group">
                     <label><strong>Reason:</strong></label>

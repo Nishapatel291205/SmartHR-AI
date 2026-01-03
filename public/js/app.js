@@ -14,7 +14,7 @@ async function initApp() {
         if (response && response.user) {
             currentUser = response.user;
             setCurrentUser(response.user);
-            renderApp();
+            await renderApp();
         } else {
             removeToken();
             window.location.reload();
@@ -25,18 +25,28 @@ async function initApp() {
     }
 }
 
-function renderApp() {
+async function renderApp() {
     const app = document.getElementById('app');
     
     if (currentUser.role === 'HR') {
-        renderHRApp();
+        await renderHRApp();
     } else {
         renderEmployeeApp();
     }
 }
 
-function renderHRApp() {
+async function renderHRApp() {
     const app = document.getElementById('app');
+    
+    // Get pending leaves count for notification badge
+    let pendingLeavesCount = 0;
+    try {
+        const leaves = await leavesAPI.getAll();
+        pendingLeavesCount = leaves.filter(l => l.status === 'Pending').length;
+    } catch (error) {
+        console.error('Error fetching leaves count:', error);
+    }
+    
     app.innerHTML = `
         <div class="dashboard">
             <div class="sidebar">
@@ -48,7 +58,10 @@ function renderHRApp() {
                     <li><a href="#" onclick="navigate('dashboard'); return false;" class="${currentPage === 'dashboard' ? 'active' : ''}">📊 Dashboard</a></li>
                     <li><a href="#" onclick="navigate('employees'); return false;" class="${currentPage === 'employees' ? 'active' : ''}">👥 Employees</a></li>
                     <li><a href="#" onclick="navigate('attendance'); return false;" class="${currentPage === 'attendance' ? 'active' : ''}">⏰ Attendance</a></li>
-                    <li><a href="#" onclick="navigate('leaves'); return false;" class="${currentPage === 'leaves' ? 'active' : ''}">🏖️ Leave Requests</a></li>
+                    <li><a href="#" onclick="navigate('leaves'); return false;" class="${currentPage === 'leaves' ? 'active' : ''}">
+                        🏖️ Leave Requests
+                        ${pendingLeavesCount > 0 ? `<span class="notification-badge">${pendingLeavesCount}</span>` : ''}
+                    </a></li>
                     <li><a href="#" onclick="navigate('payroll'); return false;" class="${currentPage === 'payroll' ? 'active' : ''}">💰 Payroll</a></li>
                     <li><a href="#" onclick="navigate('reports'); return false;" class="${currentPage === 'reports' ? 'active' : ''}">📈 Reports</a></li>
                     <li><a href="#" onclick="logout(); return false;">🚪 Logout</a></li>
@@ -118,9 +131,9 @@ function renderEmployeeApp() {
     loadEmployeePage();
 }
 
-function navigate(page) {
+async function navigate(page) {
     currentPage = page;
-    renderApp();
+    await renderApp();
 }
 
 function loadHRPage() {

@@ -5,18 +5,37 @@ async function loadEmployeeDashboard() {
     
     try {
         const user = getCurrentUser();
-        if (!user || !user.employee) {
+        let employee = user?.employee;
+        let employeeId = null;
+        
+        // Normalize employee id/reference
+        if (user?.employeeRef) {
+            employeeId = user.employeeRef._id ? user.employeeRef._id : user.employeeRef;
+        } else if (user?.employee?._id) {
+            employeeId = user.employee._id;
+            employee = user.employee;
+        } else if (user?.employee?.id) {
+            employeeId = user.employee.id;
+            employee = user.employee;
+        }
+        
+        // If employee object is not present but we have id, fetch full record
+        if (!employee && employeeId) {
+            employee = await employeesAPI.getById(employeeId);
+        }
+        
+        if (!employee) {
             content.innerHTML = '<div class="alert alert-error">Employee profile not found</div>';
             return;
         }
         
         const [attendanceSummary, leaveSummary, todayAttendance] = await Promise.all([
-            attendanceAPI.getSummary(),
-            leavesAPI.getSummary(),
+            attendanceAPI.getSummary(employeeId),
+            leavesAPI.getSummary(employeeId),
             attendanceAPI.getToday()
         ]);
         
-        renderEmployeeDashboard(user.employee, attendanceSummary, leaveSummary, todayAttendance);
+        renderEmployeeDashboard(employee, attendanceSummary, leaveSummary, todayAttendance || {});
     } catch (error) {
         content.innerHTML = `<div class="alert alert-error">Error loading dashboard: ${error.message}</div>`;
     }
@@ -62,13 +81,13 @@ function renderEmployeeDashboard(employee, attendanceSummary, leaveSummary, toda
         </div>
         
         <div class="attendance-actions" style="margin-top: 30px;">
-            <div class="attendance-btn ${todayAttendance.checkedIn ? 'checked-in' : ''}" id="checkin-btn" onclick="handleCheckIn()">
+            <div class="attendance-btn ${todayAttendance?.checkedIn ? 'checked-in' : ''}" id="checkin-btn" onclick="handleCheckIn()">
                 <h3>Check IN →</h3>
-                <p>${todayAttendance.checkedIn ? `Checked in at ${new Date(todayAttendance.checkInTime).toLocaleTimeString()}` : 'Mark your attendance'}</p>
+                <p>${todayAttendance?.checkedIn ? `Checked in at ${new Date(todayAttendance.checkInTime).toLocaleTimeString()}` : 'Mark your attendance'}</p>
             </div>
-            <div class="attendance-btn ${todayAttendance.checkedOut ? 'checked-in' : ''}" id="checkout-btn" onclick="handleCheckOut()">
+            <div class="attendance-btn ${todayAttendance?.checkedOut ? 'checked-in' : ''}" id="checkout-btn" onclick="handleCheckOut()">
                 <h3>Check Out →</h3>
-                <p>${todayAttendance.checkedOut ? `Checked out at ${new Date(todayAttendance.checkOutTime).toLocaleTimeString()}` : todayAttendance.checkedIn ? 'Mark your checkout' : 'Check in first'}</p>
+                <p>${todayAttendance?.checkedOut ? `Checked out at ${new Date(todayAttendance.checkOutTime).toLocaleTimeString()}` : todayAttendance?.checkedIn ? 'Mark your checkout' : 'Check in first'}</p>
             </div>
         </div>
         

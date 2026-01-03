@@ -229,3 +229,5 @@ async function viewLeave(id) {
     document.body.appendChild(modal);
 }
 
+})();
+

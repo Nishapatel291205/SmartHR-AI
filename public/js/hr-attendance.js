@@ -1,5 +1,6 @@
 // HR Attendance Management
-let attendanceList = [];
+(function() {
+let hrAttendanceList = [];
 let selectedDate = new Date();
 
 async function loadHRAttendance() {
@@ -9,7 +10,7 @@ async function loadHRAttendance() {
     try {
         const dateStr = selectedDate.toISOString().split('T')[0];
         const attendance = await attendanceAPI.getAll({ date: dateStr });
-        attendanceList = attendance;
+        hrAttendanceList = attendance;
         renderAttendanceTable(attendance);
     } catch (error) {
         content.innerHTML = `<div class="alert alert-error">Error loading attendance: ${error.message}</div>`;
@@ -26,6 +27,7 @@ function renderAttendanceTable(attendance) {
                 <h2>Attendance</h2>
                 <div>
                     <input type="text" class="search-box" id="attendance-search" placeholder="Search..." onkeyup="filterAttendance()">
+                    <button class="btn btn-primary btn-sm" onclick="showAddAttendanceModal()" style="margin-left: 10px;">+ Add Attendance</button>
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
@@ -98,7 +100,7 @@ function onDateChange() {
 
 function filterAttendance() {
     const searchTerm = document.getElementById('attendance-search').value.toLowerCase();
-    const filtered = attendanceList.filter(att => 
+    const filtered = hrAttendanceList.filter(att => 
         `${att.employee?.firstName || ''} ${att.employee?.lastName || ''}`.toLowerCase().includes(searchTerm) ||
         att.employee?.email?.toLowerCase().includes(searchTerm)
     );
@@ -131,7 +133,7 @@ function filterAttendance() {
 }
 
 async function editAttendance(id) {
-    const attendance = attendanceList.find(a => a._id === id);
+    const attendance = hrAttendanceList.find(a => a._id === id);
     if (!attendance) return;
     
     const modal = document.createElement('div');
@@ -207,4 +209,81 @@ async function editAttendance(id) {
         }
     });
 }
+
+async function showAddAttendanceModal() {
+    try {
+        const employees = await employeesAPI.getAll();
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal show';
+        modal.id = 'add-attendance-modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Add Attendance</h2>
+                    <button class="modal-close" onclick="closeModal('add-attendance-modal')">&times;</button>
+                </div>
+                <form id="add-attendance-form">
+                    <div class="form-group">
+                        <label>Employee *</label>
+                        <select id="att-employee" required>
+                            <option value="">Select Employee</option>
+                            ${employees.map(emp => `
+                                <option value="${emp._id}">${emp.firstName} ${emp.lastName} (${emp.email})</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Date *</label>
+                        <input type="date" id="att-date" value="${selectedDate.toISOString().split('T')[0]}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Status *</label>
+                        <select id="att-status" required>
+                            <option value="Present">Present</option>
+                            <option value="Absent">Absent</option>
+                            <option value="Half-Day">Half-Day</option>
+                            <option value="On Leave">On Leave</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Check In Time</label>
+                        <input type="time" id="att-checkin">
+                    </div>
+                    <div class="form-group">
+                        <label>Check Out Time</label>
+                        <input type="time" id="att-checkout">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('add-attendance-modal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Attendance</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        document.getElementById('add-attendance-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                employeeId: document.getElementById('att-employee').value,
+                date: document.getElementById('att-date').value,
+                status: document.getElementById('att-status').value,
+                checkIn: document.getElementById('att-checkin').value || null,
+                checkOut: document.getElementById('att-checkout').value || null
+            };
+            
+            try {
+                await attendanceAPI.create(data);
+                closeModal('add-attendance-modal');
+                loadHRAttendance();
+            } catch (error) {
+                alert('Error adding attendance: ' + error.message);
+            }
+        });
+    } catch (error) {
+        alert('Error loading employees: ' + error.message);
+    }
+}
+})();
 

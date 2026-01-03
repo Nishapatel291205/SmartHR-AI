@@ -41,8 +41,11 @@ router.get('/:id', authenticate, async (req, res) => {
     }
 
     // Employees can only view their own payroll
-    if (req.user.role === 'Employee' && payroll.employee._id.toString() !== req.user.employeeRef?.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
+    if (req.user.role === 'Employee') {
+      const userEmployeeId = req.user.employeeRef?._id ? req.user.employeeRef._id.toString() : req.user.employeeRef?.toString();
+      if (payroll.employee._id.toString() !== userEmployeeId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
     }
 
     res.json(payroll);
@@ -58,7 +61,8 @@ router.get('/employee/:employeeId', authenticate, async (req, res) => {
 
     // Employees can only view their own payroll
     if (req.user.role === 'Employee') {
-      if (!req.user.employeeRef || req.user.employeeRef.toString() !== employeeId) {
+      const userEmployeeId = req.user.employeeRef?._id ? req.user.employeeRef._id.toString() : req.user.employeeRef?.toString();
+      if (!userEmployeeId || userEmployeeId !== employeeId) {
         return res.status(403).json({ message: 'Access denied' });
       }
     }
