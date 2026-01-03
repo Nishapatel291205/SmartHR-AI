@@ -1,5 +1,4 @@
 // HR Attendance Management
-(function() {
 let hrAttendanceList = [];
 let selectedDate = new Date();
 
@@ -9,9 +8,46 @@ async function loadHRAttendance() {
     
     try {
         const dateStr = selectedDate.toISOString().split('T')[0];
-        const attendance = await attendanceAPI.getAll({ date: dateStr });
-        hrAttendanceList = attendance;
-        renderAttendanceTable(attendance);
+        
+        // Fetch all employees and attendance for the selected date
+        const [employees, attendance] = await Promise.all([
+            employeesAPI.getAll(),
+            attendanceAPI.getAll({ date: dateStr })
+        ]);
+        
+        // Create a map of attendance by employee ID
+        const attendanceMap = {};
+        attendance.forEach(att => {
+            if (att.employee && att.employee._id) {
+                attendanceMap[att.employee._id] = att;
+            }
+        });
+        
+        // Combine employees with their attendance records
+        const combinedData = employees.map(emp => {
+            const att = attendanceMap[emp._id];
+            if (att) {
+                return {
+                    ...att,
+                    employee: emp
+                };
+            } else {
+                // Create a placeholder attendance record for employees without attendance
+                return {
+                    _id: null,
+                    employee: emp,
+                    date: new Date(selectedDate),
+                    checkIn: null,
+                    checkOut: null,
+                    workHours: 0,
+                    extraHours: 0,
+                    status: 'Absent'
+                };
+            }
+        });
+        
+        hrAttendanceList = combinedData;
+        renderAttendanceTable(combinedData);
     } catch (error) {
         content.innerHTML = `<div class="alert alert-error">Error loading attendance: ${error.message}</div>`;
     }
@@ -61,7 +97,7 @@ function renderAttendanceTable(attendance) {
                             <td>${att.extraHours ? att.extraHours.toFixed(2) + ' hrs' : '-'}</td>
                             <td><span class="status-badge ${getStatusClass(att.status)}">${att.status || 'Absent'}</span></td>
                             <td>
-                                <button class="btn btn-sm btn-primary" onclick="editAttendance('${att._id}')">Edit</button>
+                                ${att._id ? `<button class="btn btn-sm btn-primary" onclick="editAttendance('${att._id}')">Edit</button>` : `<button class="btn btn-sm btn-primary" onclick="showAddAttendanceModalForEmployee('${att.employee._id}')">Add</button>`}
                             </td>
                         </tr>
                     `).join('') : `
@@ -119,7 +155,7 @@ function filterAttendance() {
                 <td>${att.extraHours ? att.extraHours.toFixed(2) + ' hrs' : '-'}</td>
                 <td><span class="status-badge ${getStatusClass(att.status)}">${att.status || 'Absent'}</span></td>
                 <td>
-                    <button class="btn btn-sm btn-primary" onclick="editAttendance('${att._id}')">Edit</button>
+                    ${att._id ? `<button class="btn btn-sm btn-primary" onclick="editAttendance('${att._id}')">Edit</button>` : `<button class="btn btn-sm btn-primary" onclick="showAddAttendanceModalForEmployee('${att.employee._id}')">Add</button>`}
                 </td>
             </tr>
         `).join('') : `
@@ -188,16 +224,10 @@ async function editAttendance(id) {
         
         const updateData = { status };
         if (checkIn) {
-            const date = new Date(attendance.date);
-            const [hours, minutes] = checkIn.split(':');
-            date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-            updateData.checkIn = date;
+            updateData.checkIn = checkIn; // Send as time string (HH:MM)
         }
         if (checkOut) {
-            const date = new Date(attendance.date);
-            const [hours, minutes] = checkOut.split(':');
-            date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-            updateData.checkOut = date;
+            updateData.checkOut = checkOut; // Send as time string (HH:MM)
         }
         
         try {
@@ -285,5 +315,75 @@ async function showAddAttendanceModal() {
         alert('Error loading employees: ' + error.message);
     }
 }
-})();
+
+async function showAddAttendanceModalForEmployee(employeeId) {
+    try {
+        const modal = document.createElement('div');
+        modal.className = 'modal show';
+        modal.id = 'add-attendance-modal';
+        const employee = hrAttendanceList.find(a => a.employee._id === employeeId)?.employee;
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Add Attendance</h2>
+                    <button class="modal-close" onclick="closeModal('add-attendance-modal')">&times;</button>
+                </div>
+                <form id="add-attendance-form">
+                    <div class="form-group">
+                        <label>Employee</label>
+                        <input type="text" value="${employee?.firstName || ''} ${employee?.lastName || ''} (${employee?.email || ''})" readonly>
+                        <input type="hidden" id="att-employee" value="${employeeId}">
+                    </div>
+                    <div class="form-group">
+                        <label>Date *</label>
+                        <input type="date" id="att-date" value="${selectedDate.toISOString().split('T')[0]}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Status *</label>
+                        <select id="att-status" required>
+                            <option value="Present">Present</option>
+                            <option value="Absent">Absent</option>
+                            <option value="Half-Day">Half-Day</option>
+                            <option value="On Leave">On Leave</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Check In Time</label>
+                        <input type="time" id="att-checkin">
+                    </div>
+                    <div class="form-group">
+                        <label>Check Out Time</label>
+                        <input type="time" id="att-checkout">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('add-attendance-modal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Attendance</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        document.getElementById('add-attendance-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                employeeId: document.getElementById('att-employee').value,
+                date: document.getElementById('att-date').value,
+                status: document.getElementById('att-status').value,
+                checkIn: document.getElementById('att-checkin').value || null,
+                checkOut: document.getElementById('att-checkout').value || null
+            };
+            
+            try {
+                await attendanceAPI.create(data);
+                closeModal('add-attendance-modal');
+                loadHRAttendance();
+            } catch (error) {
+                alert('Error adding attendance: ' + error.message);
+            }
+        });
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
 

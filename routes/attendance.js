@@ -194,13 +194,15 @@ router.get('/summary/:employeeId?', authenticate, async (req, res) => {
       date: { $gte: startOfMonth, $lte: endOfMonth }
     });
 
-    const presentDays = attendance.filter(a => a.status === 'Present' || a.status === 'On Leave').length;
+    const presentDays = attendance.filter(a => a.status === 'Present').length;
+    const leavesCount = attendance.filter(a => a.status === 'On Leave').length;
     const totalWorkDays = attendance.length;
 
     res.json({
       presentDays,
+      leavesCount,
       totalWorkDays,
-      absentDays: totalWorkDays - presentDays
+      absentDays: totalWorkDays - presentDays - leavesCount
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

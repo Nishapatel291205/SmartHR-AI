@@ -1,4 +1,3 @@
-(function() {
 // Employee Attendance
 let attendanceList = [];
 let selectedMonth = new Date().getMonth();
@@ -44,14 +43,21 @@ async function renderAttendanceView(attendance, summary) {
         <div class="card-grid" style="margin-bottom: 30px;">
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Days Present</span>
+                    <span class="card-title">Count of days present</span>
                     <div class="card-icon success">✓</div>
                 </div>
                 <div class="card-value">${summary.presentDays || 0}</div>
             </div>
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Total Work Days</span>
+                    <span class="card-title">Leaves count</span>
+                    <div class="card-icon warning">🏖️</div>
+                </div>
+                <div class="card-value">${summary.leavesCount || 0}</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Total working days</span>
                     <div class="card-icon primary">📅</div>
                 </div>
                 <div class="card-value">${summary.totalWorkDays || 0}</div>
@@ -239,7 +245,7 @@ function renderTableView(attendance) {
                     <th>Check In</th>
                     <th>Check Out</th>
                     <th>Work Hours</th>
-                    <th>Status</th>
+                    <th>Extra hours</th>
                 </tr>
             </thead>
             <tbody>
@@ -249,7 +255,7 @@ function renderTableView(attendance) {
                         <td>${att.checkIn ? new Date(att.checkIn).toLocaleTimeString() : '-'}</td>
                         <td>${att.checkOut ? new Date(att.checkOut).toLocaleTimeString() : '-'}</td>
                         <td>${att.workHours ? att.workHours.toFixed(2) + ' hrs' : '-'}</td>
-                        <td><span class="status-badge ${getStatusClass(att.status)}">${att.status || 'Absent'}</span></td>
+                        <td>${att.extraHours ? att.extraHours.toFixed(2) + ' hrs' : '-'}</td>
                     </tr>
                 `).join('') : `
                     <tr>
@@ -282,5 +288,4 @@ async function handleCheckOut() {
         alert('Error checking out: ' + error.message);
     }
 }
-})();
 
