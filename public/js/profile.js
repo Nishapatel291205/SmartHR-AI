@@ -1,0 +1,317 @@
+// Profile Management (Both HR and Employee)
+async function loadProfile() {
+    const content = document.getElementById('page-content');
+    content.innerHTML = '<div class="spinner"></div>';
+    
+    try {
+        const user = getCurrentUser();
+        if (!user || !user.employee) {
+            // Try to get employee by employeeRef
+            const employeeId = user.employeeRef || user.employee?._id || user.employee?.id;
+            if (employeeId) {
+                const employee = await employeesAPI.getById(employeeId);
+                renderProfile(employee, user.role);
+            } else {
+                content.innerHTML = '<div class="alert alert-error">Employee profile not found</div>';
+            }
+        } else {
+            renderProfile(user.employee, user.role);
+        }
+    } catch (error) {
+        content.innerHTML = `<div class="alert alert-error">Error loading profile: ${error.message}</div>`;
+    }
+}
+
+function renderProfile(employee, role) {
+    const content = document.getElementById('page-content');
+    const isHR = role === 'HR';
+    const isEmployee = role === 'Employee';
+    
+    content.innerHTML = `
+        <div class="form-container">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <div class="employee-avatar" style="margin: 0 auto 20px; width: 120px; height: 120px; font-size: 48px;">
+                    ${getEmployeeInitials(employee)}
+                </div>
+                <h2>${employee.firstName} ${employee.lastName}</h2>
+                <p style="color: var(--text-secondary);">${employee.loginId || ''}</p>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab active" onclick="switchProfileTab('basic')">Basic Info</button>
+                <button class="tab" onclick="switchProfileTab('personal')">Personal Info</button>
+                ${isHR ? '<button class="tab" onclick="switchProfileTab(\'salary\')">Salary Info</button>' : ''}
+                <button class="tab" onclick="switchProfileTab('bank')">Bank Details</button>
+            </div>
+            
+            <div id="profile-tab-content">
+                ${renderProfileBasicInfo(employee, isHR)}
+            </div>
+            
+            ${isEmployee ? `
+                <div class="form-actions">
+                    <button class="btn btn-primary" onclick="editProfile('${employee._id}')">Edit Profile</button>
+                </div>
+            ` : ''}
+        </div>
+    `;
+    
+    window.currentProfile = employee;
+    window.currentProfileTab = 'basic';
+    window.currentProfileRole = role;
+}
+
+function getEmployeeInitials(emp) {
+    return (emp.firstName?.charAt(0) || '') + (emp.lastName?.charAt(0) || '');
+}
+
+function switchProfileTab(tab) {
+    window.currentProfileTab = tab;
+    const content = document.getElementById('profile-tab-content');
+    const isHR = window.currentProfileRole === 'HR';
+    
+    if (tab === 'basic') {
+        content.innerHTML = renderProfileBasicInfo(window.currentProfile, isHR);
+    } else if (tab === 'personal') {
+        content.innerHTML = renderProfilePersonalInfo(window.currentProfile, isHR);
+    } else if (tab === 'salary' && isHR) {
+        loadProfileSalaryInfo();
+    } else if (tab === 'bank') {
+        content.innerHTML = renderProfileBankInfo(window.currentProfile, isHR);
+    }
+    
+    // Update tab active state
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+function renderProfileBasicInfo(emp, isHR) {
+    return `
+        <div class="form-row">
+            <div class="form-group">
+                <label>Login ID</label>
+                <input type="text" value="${emp.loginId || ''}" readonly>
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" value="${emp.email || ''}" ${isHR ? '' : 'readonly'}>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Job Position</label>
+                <input type="text" value="${emp.jobPosition || ''}" ${isHR ? '' : 'readonly'}>
+            </div>
+            <div class="form-group">
+                <label>Department</label>
+                <input type="text" value="${emp.department || ''}" ${isHR ? '' : 'readonly'}>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Manager</label>
+                <input type="text" value="${emp.manager || ''}" ${isHR ? '' : 'readonly'}>
+            </div>
+            <div class="form-group">
+                <label>Location</label>
+                <input type="text" value="${emp.location || ''}" ${isHR ? '' : 'readonly'}>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Company</label>
+                <input type="text" value="${emp.companyName || ''}" ${isHR ? '' : 'readonly'}>
+            </div>
+            <div class="form-group">
+                <label>Date of Joining</label>
+                <input type="text" value="${emp.dateOfJoining ? new Date(emp.dateOfJoining).toLocaleDateString() : ''}" readonly>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Phone</label>
+            <input type="tel" id="profile-phone" value="${emp.phone || ''}">
+        </div>
+    `;
+}
+
+function renderProfilePersonalInfo(emp, isHR) {
+    return `
+        <div class="form-group">
+            <label>Residing Address</label>
+            <textarea id="profile-address" rows="3" style="width: 100%; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; font-family: inherit;">${emp.residingAddress || ''}</textarea>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Nationality</label>
+                <input type="text" id="profile-nationality" value="${emp.nationality || ''}">
+            </div>
+            <div class="form-group">
+                <label>Personal Email</label>
+                <input type="email" id="profile-personal-email" value="${emp.personalEmail || ''}">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Gender</label>
+                <select id="profile-gender" ${isHR ? '' : 'disabled'}>
+                    <option value="">Select</option>
+                    <option value="Male" ${emp.gender === 'Male' ? 'selected' : ''}>Male</option>
+                    <option value="Female" ${emp.gender === 'Female' ? 'selected' : ''}>Female</option>
+                    <option value="Other" ${emp.gender === 'Other' ? 'selected' : ''}>Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Marital Status</label>
+                <select id="profile-marital" ${isHR ? '' : 'disabled'}>
+                    <option value="">Select</option>
+                    <option value="Single" ${emp.maritalStatus === 'Single' ? 'selected' : ''}>Single</option>
+                    <option value="Married" ${emp.maritalStatus === 'Married' ? 'selected' : ''}>Married</option>
+                    <option value="Divorced" ${emp.maritalStatus === 'Divorced' ? 'selected' : ''}>Divorced</option>
+                    <option value="Widowed" ${emp.maritalStatus === 'Widowed' ? 'selected' : ''}>Widowed</option>
+                </select>
+            </div>
+        </div>
+    `;
+}
+
+function renderProfileBankInfo(emp, isHR) {
+    const bank = emp.bankDetails || {};
+    return `
+        <div class="form-row">
+            <div class="form-group">
+                <label>Account Number</label>
+                <input type="text" id="bank-account" value="${bank.accountNumber || ''}">
+            </div>
+            <div class="form-group">
+                <label>Bank Name</label>
+                <input type="text" id="bank-name" value="${bank.bankName || ''}">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>IFSC Code</label>
+                <input type="text" id="bank-ifsc" value="${bank.ifscCode || ''}">
+            </div>
+            <div class="form-group">
+                <label>PAN No</label>
+                <input type="text" id="bank-pan" value="${bank.panNo || ''}">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>UAN No</label>
+                <input type="text" id="bank-uan" value="${bank.uanNo || ''}">
+            </div>
+            <div class="form-group">
+                <label>Emp Code</label>
+                <input type="text" id="bank-empcode" value="${bank.empCode || ''}">
+            </div>
+        </div>
+    `;
+}
+
+async function loadProfileSalaryInfo() {
+    const content = document.getElementById('profile-tab-content');
+    content.innerHTML = '<div class="spinner"></div>';
+    
+    try {
+        const user = getCurrentUser();
+        const employeeId = user.employeeRef || user.employee?._id || user.employee?.id;
+        const payroll = await payrollAPI.getByEmployee(employeeId);
+        
+        if (!payroll) {
+            content.innerHTML = '<div class="alert alert-error">Payroll information not available</div>';
+            return;
+        }
+        
+        content.innerHTML = renderSalaryInfo(payroll);
+    } catch (error) {
+        content.innerHTML = `<div class="alert alert-error">Error loading salary info: ${error.message}</div>`;
+    }
+}
+
+function renderSalaryInfo(payroll) {
+    return `
+        <div class="form-row">
+            <div class="form-group">
+                <label><strong>Month Wage:</strong></label>
+                <p style="font-size: 18px;">₹${(payroll.monthWage || 0).toLocaleString()} / Month</p>
+            </div>
+            <div class="form-group">
+                <label><strong>Yearly Wage:</strong></label>
+                <p style="font-size: 18px;">₹${(payroll.yearlyWage || 0).toLocaleString()} / Yearly</p>
+            </div>
+        </div>
+        
+        <h4 style="margin: 30px 0 15px 0;">Salary Components</h4>
+        <table style="width: 100%; margin-bottom: 20px;">
+            <tr>
+                <td><strong>Basic Salary:</strong></td>
+                <td>₹${(payroll.salaryComponents?.basicSalary?.amount || 0).toFixed(2)}</td>
+                <td>${(payroll.salaryComponents?.basicSalary?.percentage || 0).toFixed(2)}%</td>
+            </tr>
+            <tr>
+                <td><strong>House Rent Allowance:</strong></td>
+                <td>₹${(payroll.salaryComponents?.houseRentAllowance?.amount || 0).toFixed(2)}</td>
+                <td>${(payroll.salaryComponents?.houseRentAllowance?.percentage || 0).toFixed(2)}%</td>
+            </tr>
+            <tr>
+                <td><strong>Standard Allowance:</strong></td>
+                <td>₹${(payroll.salaryComponents?.standardAllowance?.amount || 0).toFixed(2)}</td>
+                <td>${(payroll.salaryComponents?.standardAllowance?.percentage || 0).toFixed(2)}%</td>
+            </tr>
+            <tr>
+                <td><strong>Performance Bonus:</strong></td>
+                <td>₹${(payroll.salaryComponents?.performanceBonus?.amount || 0).toFixed(2)}</td>
+                <td>${(payroll.salaryComponents?.performanceBonus?.percentage || 0).toFixed(2)}%</td>
+            </tr>
+            <tr>
+                <td><strong>Leave Travel Allowance:</strong></td>
+                <td>₹${(payroll.salaryComponents?.leaveTravelAllowance?.amount || 0).toFixed(2)}</td>
+                <td>${(payroll.salaryComponents?.leaveTravelAllowance?.percentage || 0).toFixed(2)}%</td>
+            </tr>
+            <tr>
+                <td><strong>Fixed Allowance:</strong></td>
+                <td>₹${(payroll.salaryComponents?.fixedAllowance?.amount || 0).toFixed(2)}</td>
+                <td>${(payroll.salaryComponents?.fixedAllowance?.percentage || 0).toFixed(2)}%</td>
+            </tr>
+        </table>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label><strong>Gross Salary:</strong></label>
+                <p style="font-size: 18px; font-weight: 600;">₹${(payroll.grossSalary || 0).toLocaleString()}</p>
+            </div>
+            <div class="form-group">
+                <label><strong>Net Salary:</strong></label>
+                <p style="font-size: 18px; font-weight: 600; color: var(--success-color);">₹${(payroll.netSalary || 0).toLocaleString()}</p>
+            </div>
+        </div>
+    `;
+}
+
+async function editProfile(id) {
+    const data = {
+        phone: document.getElementById('profile-phone')?.value || '',
+        residingAddress: document.getElementById('profile-address')?.value || '',
+        nationality: document.getElementById('profile-nationality')?.value || '',
+        personalEmail: document.getElementById('profile-personal-email')?.value || '',
+        bankDetails: {
+            accountNumber: document.getElementById('bank-account')?.value || '',
+            bankName: document.getElementById('bank-name')?.value || '',
+            ifscCode: document.getElementById('bank-ifsc')?.value || '',
+            panNo: document.getElementById('bank-pan')?.value || '',
+            uanNo: document.getElementById('bank-uan')?.value || '',
+            empCode: document.getElementById('bank-empcode')?.value || ''
+        }
+    };
+    
+    try {
+        await employeesAPI.update(id, data);
+        alert('Profile updated successfully!');
+        loadProfile();
+    } catch (error) {
+        alert('Error updating profile: ' + error.message);
+    }
+}
+
