@@ -22,7 +22,9 @@ async function loadEmployeePayroll() {
             return;
         }
         
-        const payroll = await payrollAPI.getByEmployee(employeeId);
+        const payrollData = await payrollAPI.getByEmployee(employeeId);
+        // Handle case where API might return array or single object
+        const payroll = Array.isArray(payrollData) ? payrollData[0] : payrollData;
         renderPayrollView(payroll);
     } catch (error) {
         content.innerHTML = `<div class="alert alert-error">Error loading payroll: ${error.message}</div>`;

@@ -527,10 +527,3 @@ async function editEmployee(id) {
     });
 }
 
-function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.remove();
-    }
-}
-

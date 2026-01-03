@@ -124,19 +124,26 @@ function getLeaveStatusClass(status) {
 }
 
 function showApplyLeaveModal() {
+    const user = getCurrentUser();
+    const employeeName = user?.employee ? `${user.employee.firstName || ''} ${user.employee.lastName || ''}`.trim() : 'Employee';
+    
     const modal = document.createElement('div');
     modal.className = 'modal show';
     modal.id = 'apply-leave-modal';
     modal.innerHTML = `
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
-                <h2>Apply for Leave</h2>
+                <h2>Time Off Type Request</h2>
                 <button class="modal-close" onclick="closeModal('apply-leave-modal')">&times;</button>
             </div>
             <form id="apply-leave-form">
                 <div class="form-group">
-                    <label>Time Off Type *</label>
-                    <select id="leave-type" required>
+                    <label>Employee</label>
+                    <input type="text" value="${employeeName}" readonly style="background: #f5f5f5; cursor: not-allowed;">
+                </div>
+                <div class="form-group">
+                    <label>Time off Type *</label>
+                    <select id="leave-type" required onchange="toggleAttachmentField()">
                         <option value="">Select Type</option>
                         <option value="Paid Time Off">Paid Time Off</option>
                         <option value="Sick Leave">Sick Leave</option>
@@ -146,19 +153,32 @@ function showApplyLeaveModal() {
                 <div class="form-row">
                     <div class="form-group">
                         <label>Start Date *</label>
-                        <input type="date" id="leave-start" required>
+                        <input type="date" id="leave-start" required onchange="calculateDuration()">
                     </div>
                     <div class="form-group">
                         <label>End Date *</label>
-                        <input type="date" id="leave-end" required>
+                        <input type="date" id="leave-end" required onchange="calculateDuration()">
                     </div>
+                </div>
+                <div class="form-group">
+                    <label>Duration</label>
+                    <input type="text" id="leave-duration" value="0 Days" readonly style="background: #f5f5f5; cursor: not-allowed;">
+                </div>
+                <div class="form-group" id="attachment-group" style="display: none;">
+                    <label>Attachments <small style="color: var(--text-secondary);">(For sick leave certificate)</small></label>
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 12px; border: 2px dashed var(--border-color); border-radius: 8px; cursor: pointer;" onclick="document.getElementById('leave-attachment').click()">
+                        <input type="file" id="leave-attachment" accept=".pdf,.jpg,.jpeg,.png" style="display: none;" onchange="handleFileSelect(event)">
+                        <span style="font-size: 24px;">+</span>
+                        <span id="attachment-text" style="color: var(--text-secondary);">Click to upload attachment</span>
+                    </div>
+                    <div id="attachment-preview" style="margin-top: 10px;"></div>
                 </div>
                 <div class="form-group">
                     <label>Reason</label>
                     <textarea id="leave-reason" rows="4" style="width: 100%; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; font-family: inherit;"></textarea>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('apply-leave-modal')">Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('apply-leave-modal')">Discard</button>
                     <button type="submit" class="btn btn-primary">Submit</button>
                 </div>
             </form>
@@ -167,19 +187,73 @@ function showApplyLeaveModal() {
     document.body.appendChild(modal);
     
     document.getElementById('apply-leave-form').addEventListener('submit', handleApplyLeave);
+    
+    // Store functions on window for inline handlers
+    window.toggleAttachmentField = function() {
+        const leaveType = document.getElementById('leave-type').value;
+        const attachmentGroup = document.getElementById('attachment-group');
+        if (leaveType === 'Sick Leave') {
+            attachmentGroup.style.display = 'block';
+        } else {
+            attachmentGroup.style.display = 'none';
+            document.getElementById('leave-attachment').value = '';
+            document.getElementById('attachment-preview').innerHTML = '';
+            document.getElementById('attachment-text').textContent = 'Click to upload attachment';
+        }
+    };
+    
+    window.calculateDuration = function() {
+        const startDate = document.getElementById('leave-start').value;
+        const endDate = document.getElementById('leave-end').value;
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            document.getElementById('leave-duration').value = `${diffDays} Days`;
+        } else {
+            document.getElementById('leave-duration').value = '0 Days';
+        }
+    };
+    
+    window.handleFileSelect = function(event) {
+        const file = event.target.files[0];
+        if (file) {
+            document.getElementById('attachment-text').textContent = file.name;
+            const preview = document.getElementById('attachment-preview');
+            preview.innerHTML = `<div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: #f5f5f5; border-radius: 4px;">
+                <span>📎 ${file.name}</span>
+                <button type="button" onclick="document.getElementById('leave-attachment').value=''; document.getElementById('attachment-text').textContent='Click to upload attachment'; this.parentElement.remove();" style="background: none; border: none; color: var(--danger-color); cursor: pointer;">×</button>
+            </div>`;
+        }
+    };
 }
 
 async function handleApplyLeave(e) {
     e.preventDefault();
     
-    const data = {
-        timeOffType: document.getElementById('leave-type').value,
-        startDate: document.getElementById('leave-start').value,
-        endDate: document.getElementById('leave-end').value,
-        reason: document.getElementById('leave-reason').value
-    };
+    const timeOffType = document.getElementById('leave-type').value;
+    const startDate = document.getElementById('leave-start').value;
+    const endDate = document.getElementById('leave-end').value;
+    const reason = document.getElementById('leave-reason').value;
+    const attachmentFile = document.getElementById('leave-attachment')?.files[0];
+    
+    if (!timeOffType || !startDate || !endDate) {
+        alert('Please fill in all required fields');
+        return;
+    }
     
     try {
+        // For now, we'll send attachment filename since file upload needs backend changes
+        // In a real implementation, you'd use FormData for file uploads
+        const data = {
+            timeOffType,
+            startDate,
+            endDate,
+            reason: reason || '',
+            attachment: attachmentFile ? attachmentFile.name : null // Store filename for now
+        };
+        
         await leavesAPI.create(data);
         closeModal('apply-leave-modal');
         loadEmployeeLeaves();
